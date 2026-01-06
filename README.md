@@ -306,3 +306,4 @@ MIT License
 
 **Made with ❤️ for algorithmic traders**
 # Smart-Algo-Trading
+# Smart-Algo-Trading
