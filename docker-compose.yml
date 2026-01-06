@@ -1,0 +1,58 @@
+version: '3.8'
+
+services:
+  # Backend Service
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: smart-algo-backend
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - KITE_API_KEY=${KITE_API_KEY}
+      - KITE_API_SECRET=${KITE_API_SECRET}
+      - PAPER_TRADING=${PAPER_TRADING:-True}
+      - MAX_LOSS_PER_DAY=${MAX_LOSS_PER_DAY:-5000.0}
+      - MAX_POSITIONS=${MAX_POSITIONS:-3}
+      - VERBOSE_LOGGING=${VERBOSE_LOGGING:-True}
+    volumes:
+      - ./backend/data:/app/data
+      - ./backend/app:/app/app
+    networks:
+      - smart-algo-network
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Frontend Service
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: smart-algo-frontend
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    environment:
+      - VITE_API_URL=http://backend:8000
+    networks:
+      - smart-algo-network
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+
+networks:
+  smart-algo-network:
+    driver: bridge
+
+volumes:
+  backend-data:
