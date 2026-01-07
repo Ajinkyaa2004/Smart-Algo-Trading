@@ -12,14 +12,14 @@ interface SidebarProps {
 
 export const Sidebar: React.FC<SidebarProps> = ({ activePage, onNavigate, isOpen }) => {
     const navItems = [
-        { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+        { id: 'dashboard', label: 'Watchlist', icon: LayoutDashboard },
         { id: 'portfolio', label: 'Portfolio', icon: Wallet },
         { id: 'strategies', label: 'Strategies', icon: TrendingUp },
         { id: 'trading-bot', label: 'Trading Bot', icon: Bot },
-        { id: 'backtesting', label: 'Backtesting', icon: BarChart3 },
         { id: 'live', label: 'Live Trading', icon: Activity },
         { id: 'orders', label: 'Orders', icon: ShoppingCart },
-        { id: 'historical', label: 'Historical Data', icon: Database },
+        { id: 'history', label: 'Trading History', icon: BarChart3 },
+        { id: 'historical', label: 'Historical & Backtest', icon: Database },
         { id: 'settings', label: 'Settings', icon: Settings },
     ];
 

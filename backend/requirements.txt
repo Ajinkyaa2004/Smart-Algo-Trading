@@ -51,3 +51,5 @@ uvloop==0.22.1
 watchfiles==1.1.1
 websockets==15.0.1
 zope.interface==8.1.1
+pymongo==4.9.2
+motor==3.6.0

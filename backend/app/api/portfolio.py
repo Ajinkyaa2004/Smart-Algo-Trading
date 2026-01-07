@@ -1,24 +1,26 @@
 """
 Portfolio & Account API Routes
 Endpoints for user profile, holdings, positions, orders, margins, and GTT
+**USER-AWARE**: Each user sees only their own data
 """
-from fastapi import APIRouter, HTTPException
-from typing import Dict, List
+from fastapi import APIRouter, HTTPException, Depends
+from typing import Dict, List, Optional
 from app.services.kite_auth import kite_auth_service
+from app.utils.auth_utils import get_session_token
 
 router = APIRouter()
 
 
 @router.get("/profile")
-async def get_user_profile():
+async def get_user_profile(session_token: Optional[str] = Depends(get_session_token)):
     """
     Get user profile information
     
     Returns:
-        User profile data
+        User profile data for the authenticated user
     """
     try:
-        kite = kite_auth_service.get_kite_instance()
+        kite = kite_auth_service.get_kite_instance(session_token)
         profile = kite.profile()
         
         return {
@@ -31,15 +33,15 @@ async def get_user_profile():
 
 
 @router.get("/holdings")
-async def get_holdings():
+async def get_holdings(session_token: Optional[str] = Depends(get_session_token)):
     """
     Get user's stock holdings (portfolio)
     
     Returns:
-        List of holdings with P&L
+        List of holdings with P&L for the authenticated user
     """
     try:
-        kite = kite_auth_service.get_kite_instance()
+        kite = kite_auth_service.get_kite_instance(session_token)
         holdings = kite.holdings()
         
         return {
@@ -53,15 +55,15 @@ async def get_holdings():
 
 
 @router.get("/positions")
-async def get_positions():
+async def get_positions(session_token: Optional[str] = Depends(get_session_token)):
     """
     Get current positions (open trades)
     
     Returns:
-        Net and day positions with P&L
+        Net and day positions with P&L for the authenticated user
     """
     try:
-        kite = kite_auth_service.get_kite_instance()
+        kite = kite_auth_service.get_kite_instance(session_token)
         positions = kite.positions()
         
         return {
@@ -76,15 +78,15 @@ async def get_positions():
 
 
 @router.get("/orders")
-async def get_orders():
+async def get_orders(session_token: Optional[str] = Depends(get_session_token)):
     """
     Get order history
     
     Returns:
-        List of all orders
+        List of all orders for the authenticated user
     """
     try:
-        kite = kite_auth_service.get_kite_instance()
+        kite = kite_auth_service.get_kite_instance(session_token)
         orders = kite.orders()
         
         return {
@@ -98,15 +100,15 @@ async def get_orders():
 
 
 @router.get("/margins")
-async def get_margins():
+async def get_margins(session_token: Optional[str] = Depends(get_session_token)):
     """
     Get account margins (balance)
     
     Returns:
-        Margin details for all segments
+        Margin details for all segments for the authenticated user
     """
     try:
-        kite = kite_auth_service.get_kite_instance()
+        kite = kite_auth_service.get_kite_instance(session_token)
         margins = kite.margins()
         
         return {
@@ -119,7 +121,7 @@ async def get_margins():
 
 
 @router.get("/margins/{segment}")
-async def get_segment_margins(segment: str):
+async def get_segment_margins(segment: str, session_token: Optional[str] = Depends(get_session_token)):
     """
     Get margins for specific segment
     
@@ -127,10 +129,10 @@ async def get_segment_margins(segment: str):
         segment: 'equity' or 'commodity'
         
     Returns:
-        Segment margin details
+        Segment margin details for the authenticated user
     """
     try:
-        kite = kite_auth_service.get_kite_instance()
+        kite = kite_auth_service.get_kite_instance(session_token)
         margins = kite.margins(segment)
         
         return {
@@ -143,15 +145,15 @@ async def get_segment_margins(segment: str):
 
 
 @router.get("/gtt")
-async def get_gtt_orders():
+async def get_gtt_orders(session_token: Optional[str] = Depends(get_session_token)):
     """
     Get GTT (Good Till Triggered) orders
     
     Returns:
-        List of GTT orders
+        List of GTT orders for the authenticated user
     """
     try:
-        kite = kite_auth_service.get_kite_instance()
+        kite = kite_auth_service.get_kite_instance(session_token)
         gtt = kite.get_gtts()
         
         return {

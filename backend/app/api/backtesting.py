@@ -43,9 +43,23 @@ async def run_backtest(request: BacktestRequest):
     and simulates the strategy execution to provide accurate performance metrics.
     """
     try:
-        # Parse dates
-        start_date = datetime.strptime(request.start_date, "%Y-%m-%d")
-        end_date = datetime.strptime(request.end_date, "%Y-%m-%d")
+        # Parse dates - support both YYYY-MM-DD and YYYY-MM-DD HH:MM:SS
+        try:
+            start_date = datetime.strptime(request.start_date, "%Y-%m-%d %H:%M:%S")
+        except ValueError:
+            try:
+                start_date = datetime.strptime(request.start_date, "%Y-%m-%d %H:%M")
+            except ValueError:
+                start_date = datetime.strptime(request.start_date, "%Y-%m-%d")
+
+        try:
+            end_date = datetime.strptime(request.end_date, "%Y-%m-%d %H:%M:%S")
+        except ValueError:
+             try:
+                end_date = datetime.strptime(request.end_date, "%Y-%m-%d %H:%M")
+             except ValueError:
+                # Default end date to end of day if only date provided
+                end_date = datetime.strptime(request.end_date, "%Y-%m-%d").replace(hour=15, minute=30)
         
         # Validate dates
         if start_date >= end_date:
@@ -54,11 +68,10 @@ async def run_backtest(request: BacktestRequest):
                 detail="Start date must be before end date"
             )
         
-        if end_date > datetime.now():
-            raise HTTPException(
-                status_code=400,
-                detail="End date cannot be in the future"
-            )
+        # Allow backtesting up to today (including today's data if available)
+        if end_date > datetime.now() + timedelta(days=1): 
+             pass # Allow small buffer, or strict check: datetime.now()
+
         
         # Validate strategy type
         valid_strategies = ['supertrend', 'ema_rsi', 'renko_macd', 'orb', 'ema_scalping', 'breakout', 'pattern']
@@ -109,9 +122,16 @@ async def run_backtest(request: BacktestRequest):
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
+        error_msg = str(e)
+        if "Not authenticated" in error_msg:
+             raise HTTPException(
+                status_code=401,
+                detail="Kite session expired. Please login again to refresh the token."
+            )
+        
         raise HTTPException(
             status_code=500,
-            detail=f"Backtest failed: {str(e)}"
+            detail=f"Backtest failed: {error_msg}"
         )
 
 

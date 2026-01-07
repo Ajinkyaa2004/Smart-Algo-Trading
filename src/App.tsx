@@ -7,7 +7,8 @@ import LiveMarket from './pages/LiveMarket';
 import HistoricalData from './pages/HistoricalData';
 import Orders from './pages/Orders';
 import TradingBot from './pages/TradingBot';
-import Backtesting from './pages/Backtesting';
+import TradingHistory from './pages/TradingHistory';
+
 import Login from './pages/Login';
 import { Toaster } from 'sonner';
 
@@ -22,12 +23,23 @@ function App() {
 
   const checkAuth = async () => {
     try {
-      const response = await fetch('http://localhost:8000/api/auth/status');
+      // Check for login success param in URL
+      const params = new URLSearchParams(window.location.search);
+      const tokenParam = params.get('token');
+
+      if (tokenParam) {
+        localStorage.setItem('authToken', tokenParam);
+      }
+
+      const savedToken = localStorage.getItem('authToken');
+      const url = savedToken
+        ? `http://localhost:8000/api/auth/status?token=${savedToken}`
+        : 'http://localhost:8000/api/auth/status';
+
+      const response = await fetch(url);
       const data = await response.json();
       setIsAuthenticated(data.is_authenticated);
 
-      // Check for login success param in URL
-      const params = new URLSearchParams(window.location.search);
       if (params.get('login') === 'success') {
         // Clear URL param
         window.history.replaceState({}, '', window.location.pathname);
@@ -56,7 +68,8 @@ function App() {
       case 'live': return <LiveMarket />;
       case 'historical': return <HistoricalData />;
       case 'orders': return <Orders />;
-      case 'backtesting': return <Backtesting />;
+      case 'history': return <TradingHistory />;
+
       case 'settings': return (
         <div className="h-full w-full p-4 space-y-4">
           <div className="bg-zinc-950 border border-zinc-800 rounded-xl p-8 text-center">

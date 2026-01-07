@@ -5,6 +5,7 @@
 
 import { useState } from 'react';
 import { Calendar, TrendingUp, Download } from 'lucide-react';
+import { SymbolSearch } from './SymbolSearch';
 
 interface HistoricalDataPanelProps {
   onDataFetched?: (data: any[]) => void;
@@ -13,6 +14,7 @@ interface HistoricalDataPanelProps {
 export default function HistoricalDataPanel({ onDataFetched }: HistoricalDataPanelProps) {
   const [symbol, setSymbol] = useState('RELIANCE');
   const [exchange, setExchange] = useState('NSE');
+  const [instrumentType, setInstrumentType] = useState<'EQUITY' | 'FUTURES' | 'OPTIONS'>('EQUITY');
   const [interval, setInterval] = useState('5minute');
   const [duration, setDuration] = useState(4);
   const [loading, setLoading] = useState(false);
@@ -22,7 +24,7 @@ export default function HistoricalDataPanel({ onDataFetched }: HistoricalDataPan
   const fetchHistoricalData = async () => {
     setLoading(true);
     setError(null);
-    
+
     try {
       const response = await fetch('http://localhost:8000/api/market/fetchOHLC', {
         method: 'POST',
@@ -40,7 +42,7 @@ export default function HistoricalDataPanel({ onDataFetched }: HistoricalDataPan
       }
 
       const result = await response.json();
-      
+
       if (result.status === 'success' && result.data) {
         setData(result.data);
         onDataFetched?.(result.data);
@@ -54,16 +56,7 @@ export default function HistoricalDataPanel({ onDataFetched }: HistoricalDataPan
     }
   };
 
-  const fetchNFOFutures = async () => {
-    try {
-      const response = await fetch('http://localhost:8000/api/market/nfo/futures?underlying=NIFTY');
-      const result = await response.json();
-      console.log('NFO Futures:', result);
-      alert(`Found ${result.count} NIFTY futures. Check console for details.`);
-    } catch (err) {
-      console.error('Failed to fetch NFO futures:', err);
-    }
-  };
+
 
   return (
     <div className="bg-zinc-950 border border-zinc-800 rounded-lg p-6">
@@ -72,26 +65,66 @@ export default function HistoricalDataPanel({ onDataFetched }: HistoricalDataPan
           <Calendar className="w-5 h-5 text-blue-400" />
           <h3 className="text-lg font-semibold text-zinc-100">Historical Data</h3>
         </div>
+      </div>
+
+      {/* Instrument Type Tabs */}
+      <div className="flex gap-2 mb-6">
         <button
-          onClick={fetchNFOFutures}
-          className="text-sm text-blue-400 hover:text-blue-300 transition-colors"
+          onClick={() => {
+            setInstrumentType('EQUITY');
+            setExchange('NSE');
+            setSymbol('');
+          }}
+          className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-all ${instrumentType === 'EQUITY'
+            ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/20'
+            : 'bg-zinc-900 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800'
+            }`}
         >
-          Browse NFO Futures
+          Equity Stocks
+        </button>
+        <button
+          onClick={() => {
+            setInstrumentType('FUTURES');
+            setExchange('NFO');
+            setSymbol('');
+          }}
+          className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-all ${instrumentType === 'FUTURES'
+            ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/20'
+            : 'bg-zinc-900 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800'
+            }`}
+        >
+          Futures
+        </button>
+        <button
+          onClick={() => {
+            setInstrumentType('OPTIONS');
+            setExchange('NFO');
+            setSymbol('');
+          }}
+          className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-all ${instrumentType === 'OPTIONS'
+            ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/20'
+            : 'bg-zinc-900 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800'
+            }`}
+        >
+          Options
         </button>
       </div>
 
       {/* Input Controls */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-        <div>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+        <div className="lg:col-span-2">
           <label className="block text-sm font-medium text-zinc-300 mb-1">
             Symbol
           </label>
-          <input
-            type="text"
+          <SymbolSearch
             value={symbol}
-            onChange={(e) => setSymbol(e.target.value.toUpperCase())}
-            className="w-full px-3 py-2 bg-zinc-900 border border-zinc-800 text-zinc-100 placeholder-zinc-500 rounded-md focus:ring-blue-500 focus:border-blue-500"
-            placeholder="RELIANCE"
+            onChange={setSymbol}
+            exchange={exchange}
+            placeholder={
+              instrumentType === 'EQUITY' ? "RELIANCE, TCS..." :
+                instrumentType === 'FUTURES' ? "NIFTY24JULFUT..." :
+                  "NIFTY24JUL25000CE..."
+            }
           />
         </div>
 
@@ -102,11 +135,14 @@ export default function HistoricalDataPanel({ onDataFetched }: HistoricalDataPan
           <select
             value={exchange}
             onChange={(e) => setExchange(e.target.value)}
-            className="w-full px-3 py-2 bg-zinc-900 border border-zinc-800 text-zinc-100 rounded-md focus:ring-blue-500 focus:border-blue-500"
+            className="w-full px-3 py-2 bg-zinc-900 border border-zinc-800 text-zinc-100 rounded-md focus:ring-blue-500 focus:border-blue-500 transition-all"
           >
-            <option value="NSE">NSE</option>
-            <option value="BSE">BSE</option>
-            <option value="NFO">NFO (Futures)</option>
+            <option value="NSE">NSE (Stocks)</option>
+            <option value="BSE">BSE (Stocks)</option>
+            <option value="NFO">NFO (Derivatives)</option>
+            <option value="MCX">MCX (Commodity)</option>
+            <option value="BFO">BFO (Derivatives)</option>
+            <option value="CDS">CDS (Currency)</option>
           </select>
         </div>
 
@@ -117,7 +153,7 @@ export default function HistoricalDataPanel({ onDataFetched }: HistoricalDataPan
           <select
             value={interval}
             onChange={(e) => setInterval(e.target.value)}
-            className="w-full px-3 py-2 bg-zinc-900 border border-zinc-800 text-zinc-100 rounded-md focus:ring-blue-500 focus:border-blue-500"
+            className="w-full px-3 py-2 bg-zinc-900 border border-zinc-800 text-zinc-100 rounded-md focus:ring-blue-500 focus:border-blue-500 transition-all"
           >
             <option value="minute">1 Minute</option>
             <option value="3minute">3 Minutes</option>
@@ -138,8 +174,8 @@ export default function HistoricalDataPanel({ onDataFetched }: HistoricalDataPan
             value={duration}
             onChange={(e) => setDuration(parseInt(e.target.value))}
             min="1"
-            max="365"
-            className="w-full px-3 py-2 bg-zinc-900 border border-zinc-800 text-zinc-100 rounded-md focus:ring-blue-500 focus:border-blue-500"
+            max="2000"
+            className="w-full px-3 py-2 bg-zinc-900 border border-zinc-800 text-zinc-100 rounded-md focus:ring-blue-500 focus:border-blue-500 transition-all"
           />
         </div>
       </div>

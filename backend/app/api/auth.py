@@ -35,26 +35,34 @@ async def auth_callback(request_token: str = Query(...)):
         request_token: Token received from Zerodha redirect
         
     Returns:
-        RedirectResponse: Redirects to frontend dashboard
+        RedirectResponse: Redirects to frontend dashboard with session token
     """
     from fastapi.responses import RedirectResponse
     try:
-        kite_auth_service.generate_session(request_token)
-        return RedirectResponse(url="http://localhost:3000/?login=success")
+        # Generate session and get token
+        result = kite_auth_service.generate_session(request_token)
+        session_token = result.get("session_token")
+        
+        # Redirect to frontend with token
+        return RedirectResponse(url=f"http://localhost:3000/?login=success&token={session_token}")
     except Exception as e:
         error_msg = str(e).replace("'", "").replace('"', "")
         return RedirectResponse(url=f"http://localhost:3000/login?error={error_msg}")
 
 
 @router.get("/status")
-async def get_auth_status():
+async def get_auth_status(token: str = Query(None)):
     """
     Check current authentication status
+    
+    Args:
+        token: Optional session token to check specific session
     
     Returns:
         dict: Authentication status and user info if logged in
     """
-    is_authenticated = kite_auth_service.is_authenticated()
+    # Check if specific token provided, else check primary
+    is_authenticated = kite_auth_service.is_authenticated(token)
     
     response = {
         "is_authenticated": is_authenticated,
@@ -63,7 +71,7 @@ async def get_auth_status():
     
     if is_authenticated:
         try:
-            response["user"] = kite_auth_service.get_user_profile()
+            response["user"] = kite_auth_service.get_user_profile(token)
         except Exception:
             pass
     

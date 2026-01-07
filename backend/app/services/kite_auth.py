@@ -1,12 +1,15 @@
 """
 Kite Connect Authentication Service
 Handles login flow, token persistence, and session management
+Supports multiple concurrent users
 """
 import os
 import json
-from datetime import datetime, timedelta
+import uuid
+import glob
+from datetime import datetime
 from pathlib import Path
-from typing import Optional, Dict
+from typing import Optional, Dict, Any
 from kiteconnect import KiteConnect
 from dotenv import load_dotenv
 
@@ -16,25 +19,29 @@ class KiteAuthService:
     """
     Production-grade Kite Connect authentication service
     Features:
+    - Multi-user session support
     - Token persistence to avoid daily re-login
     - Session expiry detection
     - Automatic token refresh handling
-    - Error handling for common auth failures
     """
     
     def __init__(self):
         self.api_key = os.getenv("KITE_API_KEY")
         self.api_secret = os.getenv("KITE_API_SECRET")
-        self.token_file = Path("data/kite_session.json")
-        self.kite: Optional[KiteConnect] = None
-        self.access_token: Optional[str] = None
-        self.user_profile: Optional[Dict] = None
+        self.sessions_dir = Path("data/sessions")
+        
+        # Session storage: token -> {kite, access_token, user_profile}
+        self.sessions: Dict[str, Dict[str, Any]] = {}
+        self.user_sessions: Dict[str, str] = {}  # user_id -> session_token
+        
+        # Primary session (for backward compatibility with single-user modules)
+        self.primary_session_token: Optional[str] = None
         
         # Ensure data directory exists
-        self.token_file.parent.mkdir(parents=True, exist_ok=True)
+        self.sessions_dir.mkdir(parents=True, exist_ok=True)
         
-        # Try to load existing session
-        self._load_session()
+        # Try to load existing sessions
+        self._load_sessions()
     
     def get_login_url(self) -> str:
         """
@@ -45,6 +52,8 @@ class KiteAuthService:
             raise ValueError("KITE_API_KEY not found in environment variables")
         
         kite = KiteConnect(api_key=self.api_key)
+        # We don't change login_url. All users use the same App Key. 
+        # When they login, Zerodha validates their user/pass.
         return kite.login_url()
     
     def generate_session(self, request_token: str) -> Dict:
@@ -55,123 +64,172 @@ class KiteAuthService:
             request_token: Token received from Zerodha redirect
             
         Returns:
-            Dictionary containing user profile and session info
-            
-        Raises:
-            Exception: If token exchange fails
+            Dictionary containing user profile, session info, and session_token
         """
         try:
             kite = KiteConnect(api_key=self.api_key)
             
             # Generate session
             data = kite.generate_session(request_token, api_secret=self.api_secret)
-            
-            self.access_token = data["access_token"]
-            kite.set_access_token(self.access_token)
-            self.kite = kite
+            access_token = data["access_token"]
+            kite.set_access_token(access_token)
             
             # Get user profile
             profile = kite.profile()
+            user_id = profile.get("user_id")
             
-            self.user_profile = {
-                "user_id": profile.get("user_id"),
+            # Create session token
+            session_token = str(uuid.uuid4())
+            
+            session_data = {
+                "session_token": session_token,
+                "user_id": user_id,
                 "user_name": profile.get("user_name"),
                 "email": profile.get("email"),
                 "broker": profile.get("broker"),
-                "access_token": self.access_token,
+                "access_token": access_token,
                 "login_time": datetime.now().isoformat(),
                 "api_key": self.api_key
             }
             
+            # Store in memory
+            self.sessions[session_token] = {
+                "kite": kite,
+                "access_token": access_token,
+                "user_profile": session_data
+            }
+            self.user_sessions[user_id] = session_token
+            
+            # Set as primary if none exists (for backward compatibility)
+            if not self.primary_session_token:
+                self.primary_session_token = session_token
+            
             # Persist session
-            self._save_session()
+            self._save_session(session_token, session_data)
             
             return {
                 "status": "success",
                 "message": "Authentication successful",
-                "user": self.user_profile
+                "user": session_data,
+                "session_token": session_token
             }
             
         except Exception as e:
             raise Exception(f"Session generation failed: {str(e)}")
     
-    def _save_session(self):
+    def _save_session(self, session_token: str, session_data: Dict):
         """Save session data to file for persistence"""
-        if self.user_profile:
-            with open(self.token_file, 'w') as f:
-                json.dump(self.user_profile, f, indent=2)
-            print(f"✓ Session saved to {self.token_file}")
+        user_id = session_data.get("user_id", "unknown")
+        file_path = self.sessions_dir / f"{user_id}.json"
+        
+        with open(file_path, 'w') as f:
+            json.dump(session_data, f, indent=2)
+        print(f"✓ Session saved for {user_id}")
     
-    def _load_session(self):
-        """Load existing session from file if available"""
-        if not self.token_file.exists():
+    def _load_sessions(self):
+        """Load existing sessions from files"""
+        if not self.sessions_dir.exists():
             return
         
-        try:
-            with open(self.token_file, 'r') as f:
-                self.user_profile = json.load(f)
-            
-            self.access_token = self.user_profile.get("access_token")
-            
-            # Check if session is from today (Kite tokens expire daily)
-            login_time = datetime.fromisoformat(self.user_profile.get("login_time"))
-            if datetime.now().date() > login_time.date():
-                print("⚠ Session expired (tokens are valid for 1 day only)")
-                self._clear_session()
-                return
-            
-            # Initialize Kite with saved token
-            self.kite = KiteConnect(api_key=self.api_key)
-            self.kite.set_access_token(self.access_token)
-            
-            # Verify token is still valid
+        session_files = glob.glob(str(self.sessions_dir / "*.json"))
+        
+        for file_path in session_files:
             try:
-                self.kite.profile()
-                print(f"✓ Session restored for {self.user_profile.get('user_name')}")
-            except Exception as e:
-                print(f"⚠ Saved token is invalid: {str(e)}")
-                self._clear_session()
+                with open(file_path, 'r') as f:
+                    session_data = json.load(f)
                 
-        except Exception as e:
-            print(f"⚠ Failed to load session: {str(e)}")
-            self._clear_session()
+                # Check expiry
+                login_time_str = session_data.get("login_time")
+                if login_time_str:
+                    login_time = datetime.fromisoformat(login_time_str)
+                    if datetime.now().date() > login_time.date():
+                        print(f"⚠ Session expired for {session_data.get('user_id')} (tokens are valid for 1 day only)")
+                        try:
+                            os.remove(file_path)
+                        except:
+                            pass
+                        continue
+                
+                # Restore session
+                access_token = session_data.get("access_token")
+                session_token = session_data.get("session_token")
+                user_id = session_data.get("user_id")
+                
+                if not session_token:
+                    # Legacy or missing token, generate one
+                    session_token = str(uuid.uuid4())
+                    session_data["session_token"] = session_token
+                
+                kite = KiteConnect(api_key=self.api_key)
+                kite.set_access_token(access_token)
+                
+                self.sessions[session_token] = {
+                    "kite": kite,
+                    "access_token": access_token,
+                    "user_profile": session_data
+                }
+                self.user_sessions[user_id] = session_token
+                
+                # Set primary if not set
+                if not self.primary_session_token:
+                    self.primary_session_token = session_token
+                
+                print(f"✓ Session restored for {session_data.get('user_name')}")
+                
+            except Exception as e:
+                print(f"⚠ Failed to load session from {file_path}: {str(e)}")
     
-    def _clear_session(self):
-        """Clear session data"""
-        self.access_token = None
-        self.user_profile = None
-        self.kite = None
-        if self.token_file.exists():
-            self.token_file.unlink()
-    
-    def is_authenticated(self) -> bool:
+    def _get_active_session(self, session_token: Optional[str] = None) -> Dict:
+        """Helper to get session dict based on token or default"""
+        token = session_token or self.primary_session_token
+        if not token or token not in self.sessions:
+            raise Exception("No active session. Please login.")
+        return self.sessions[token]
+
+    def is_authenticated(self, session_token: Optional[str] = None) -> bool:
         """Check if user is currently authenticated"""
-        return self.kite is not None and self.access_token is not None
+        token = session_token or self.primary_session_token
+        # It is authenticated if we have it in memory
+        return token is not None and token in self.sessions
     
-    def get_kite_instance(self) -> KiteConnect:
+    def get_kite_instance(self, session_token: Optional[str] = None) -> KiteConnect:
         """
         Get authenticated Kite instance
         
-        Returns:
-            KiteConnect instance
-            
-        Raises:
-            Exception: If not authenticated
+        Args:
+            session_token: Optional specific session token. If None, uses primary session.
         """
-        if not self.is_authenticated():
-            raise Exception("Not authenticated. Please login first.")
-        return self.kite
+        session = self._get_active_session(session_token)
+        return session["kite"]
     
-    def get_user_profile(self) -> Dict:
+    def get_user_profile(self, session_token: Optional[str] = None) -> Dict:
         """Get current user profile"""
-        if not self.user_profile:
-            raise Exception("No active session")
-        return self.user_profile
+        session = self._get_active_session(session_token)
+        return session["user_profile"]
     
-    def logout(self):
+    def logout(self, session_token: Optional[str] = None):
         """Logout and clear session"""
-        self._clear_session()
-        return {"status": "success", "message": "Logged out successfully"}
+        token = session_token or self.primary_session_token
+        
+        if token and token in self.sessions:
+            # Remove file
+            user_id = self.sessions[token]["user_profile"].get("user_id")
+            file_path = self.sessions_dir / f"{user_id}.json"
+            if file_path.exists():
+                file_path.unlink()
+            
+            # Remove from memory
+            del self.sessions[token]
+            if user_id in self.user_sessions:
+                del self.user_sessions[user_id]
+            
+            if self.primary_session_token == token:
+                # Pick another primary if available
+                self.primary_session_token = next(iter(self.sessions), None)
+            
+            return {"status": "success", "message": "Logged out successfully"}
+        
+        return {"status": "error", "message": "Session not found"}
 
 
 # Global singleton instance

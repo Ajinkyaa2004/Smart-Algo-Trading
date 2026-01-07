@@ -12,6 +12,8 @@ import uuid
 import threading
 import os
 import json
+import asyncio
+from app.services.trade_history import trade_history_service
 
 # Import pymongo for persistence
 try:
@@ -150,7 +152,15 @@ class PaperTradingEngine:
     PERSISTENCE: Uses MongoDB to save state across restarts.
     """
     
-    def __init__(self):
+    def __init__(self, user_id: Optional[str] = None):
+        """
+        Initialize Paper Trading Engine
+        
+        Args:
+            user_id: Optional user ID for multi-user support. 
+                    If None, uses legacy single-user mode.
+        """
+        self.user_id = user_id or "default"
         self.orders: Dict[str, PaperOrder] = {}
         self.positions: Dict[str, PaperPosition] = {}  # key: symbol_exchange_product
         self.trades: List[Dict] = []
@@ -189,11 +199,14 @@ class PaperTradingEngine:
                 mongo_uri = os.getenv("MONGO_URI", "mongodb://localhost:27017")
                 self.client = MongoClient(mongo_uri)
                 self.db = self.client["smart_algo_trade"]
-                self.collection_orders = self.db["paper_orders"]
-                self.collection_positions = self.db["paper_positions"]
-                self.collection_trades = self.db["paper_trades"]
-                self.collection_meta = self.db["paper_meta"]
-                print("✓ Connected to MongoDB for persistence")
+                
+                # User-specific collections
+                prefix = f"user_{self.user_id}_"
+                self.collection_orders = self.db[f"{prefix}paper_orders"]
+                self.collection_positions = self.db[f"{prefix}paper_positions"]
+                self.collection_trades = self.db[f"{prefix}paper_trades"]
+                self.collection_meta = self.db[f"{prefix}paper_meta"]
+                print(f"✓ Connected to MongoDB for user: {self.user_id}")
                 
                 # Load state immediately
                 self._load_state()
@@ -201,7 +214,7 @@ class PaperTradingEngine:
                 print(f"⚠️  MongoDB Connection Error: {e}")
         
         print("="*60)
-        print("🛡️  PAPER TRADING ENGINE INITIALIZED")
+        print(f"🛡️  PAPER TRADING ENGINE INITIALIZED (User: {self.user_id})")
         print("="*60)
         print("✓ No real orders will be placed")
         print("✓ All trades are simulated")
@@ -254,7 +267,7 @@ class PaperTradingEngine:
 
     def _load_state(self):
         """Load state from MongoDB on startup"""
-        if not self.db:
+        if self.db is None:
             return
             
         try:
@@ -336,7 +349,7 @@ class PaperTradingEngine:
 
     def _save_meta(self):
         """Save funds and global state"""
-        if not self.db: return
+        if self.db is None: return
         try:
             self.collection_meta.update_one(
                 {"_id": "global_state"},
@@ -357,7 +370,7 @@ class PaperTradingEngine:
 
     def _save_order(self, order: PaperOrder):
         """Save or update order"""
-        if not self.db: return
+        if self.db is None: return
         try:
             data = asdict(order)
             data["status"] = order.status.value # Convert Enum
@@ -372,7 +385,7 @@ class PaperTradingEngine:
 
     def _save_position(self, position: PaperPosition):
         """Save or update position"""
-        if not self.db: return
+        if self.db is None: return
         try:
             data = asdict(position)
             self.collection_positions.update_one(
@@ -385,7 +398,7 @@ class PaperTradingEngine:
 
     def _delete_position(self, position: PaperPosition):
         """Remove closed position from DB"""
-        if not self.db: return
+        if self.db is None: return
         try:
             self.collection_positions.delete_one(
                 {"symbol": position.symbol, "exchange": position.exchange, "product": position.product}
@@ -395,7 +408,7 @@ class PaperTradingEngine:
 
     def _save_trade(self, trade: Dict):
         """Save completed trade log"""
-        if not self.db: return
+        if self.db is None: return
         try:
             self.collection_trades.insert_one(trade)
         except Exception as e:
@@ -694,6 +707,41 @@ class PaperTradingEngine:
         
         # Calculate P&L
         self._calculate_pnl(position)
+
+        # ==================== LOG TO TRADE HISTORY ====================
+        try:
+            # We log trades when they are opened or COMPLETED
+            # For simplicity, we log the action immediately to our unified history
+            # If it's a SELL that closed a position, we log it as a CLOSED trade with P&L
+            
+            pnl = 0.0
+            pnl_percent = 0.0
+            status = "OPEN"
+            
+            if order.transaction_type == "SELL" and position.quantity == 0:
+                # Round trip completed
+                status = "CLOSED"
+                pnl = realized_pnl
+                pnl_percent = (realized_pnl / position.buy_value * 100) if position.buy_value != 0 else 0
+            
+            # Fire and forget async call
+            asyncio.create_task(trade_history_service.log_trade(
+                user_id=self.user_id,
+                symbol=order.tradingsymbol,
+                strategy=order.tag or "MANUAL",
+                action=order.transaction_type,
+                quantity=order.quantity,
+                entry_price=fill_price if order.transaction_type == "BUY" else position.average_price,
+                exit_price=fill_price if order.transaction_type == "SELL" else None,
+                pnl=pnl,
+                pnl_percentage=pnl_percent,
+                entry_time=position.opened_at if order.transaction_type == "SELL" else datetime.now(),
+                exit_time=datetime.now() if order.transaction_type == "SELL" else None,
+                status=status,
+                order_id=order.order_id
+            ))
+        except Exception as e:
+            print(f"⚠️  Failed to log trade to history service: {e}")
         
         # PERSISTENCE: Save Funds State
         self._save_meta()

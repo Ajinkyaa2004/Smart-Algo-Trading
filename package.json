@@ -17,6 +17,7 @@
     "@radix-ui/react-slot": "^1.2.4",
     "apexcharts": "^5.3.6",
     "chart.js": "^4.5.1",
+    "downshift": "^9.0.13",
     "react": "^19.2.0",
     "react-apexcharts": "^1.9.0",
     "react-chartjs-2": "^5.3.1",

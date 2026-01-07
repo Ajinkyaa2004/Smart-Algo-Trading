@@ -13,6 +13,7 @@ from app.api.portfolio import router as portfolio_router
 from app.api.trading_bot import router as trading_bot_router
 from app.api.paper_trading import router as paper_trading_router
 from app.api.backtesting import router as backtesting_router
+from app.api.trade_history import router as trade_history_router
 from app.services.market_hours import market_hours
 from app.services.tick_processor import tick_processor
 from app.services.kite_auth import kite_auth_service
@@ -95,7 +96,7 @@ app = FastAPI(
 )
 
 # CORS Setup
-origins = os.getenv("CORS_ORIGINS", "*").split(",")
+origins = os.getenv("CORS_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000").split(",")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,  # Configure via environment variable
@@ -129,6 +130,7 @@ app.include_router(portfolio_router, prefix="/api/portfolio", tags=["Portfolio &
 app.include_router(trading_bot_router, prefix="/api/bot", tags=["Trading Bot"])
 app.include_router(paper_trading_router, prefix="/api/paper-trading", tags=["Paper Trading"])
 app.include_router(backtesting_router, tags=["Backtesting"])
+app.include_router(trade_history_router, prefix="/api/history", tags=["Trade History"])
 
 if __name__ == "__main__":
     import uvicorn

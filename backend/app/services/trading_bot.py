@@ -50,6 +50,7 @@ class TradingBot:
         self.status = BotStatus.STOPPED
         self.strategies: Dict[str, any] = {}
         self.active_positions: Dict[str, any] = {}
+        self.timeframe = "5minute"
         
         # Settings
         self.auto_square_off_time = datetime_time(15, 15)  # 3:15 PM
@@ -78,6 +79,7 @@ class TradingBot:
         symbols: List[str],
         strategy_type: str = DEFAULT_STRATEGY,
         capital_per_symbol: float = 3000.0,
+        timeframe: str = "5minute",
         enable_tick_storage: bool = False,
         **strategy_params
     ) -> Dict:
@@ -118,6 +120,7 @@ class TradingBot:
         
         print("=" * 60)
         
+        self.timeframe = timeframe
         self._update_status(BotStatus.STARTING)
         
         try:
@@ -166,6 +169,7 @@ class TradingBot:
             print(f"✓ TRADING BOT STARTED")
             print(f"  Symbols: {', '.join(symbols)}")
             print(f"  Strategy: {strategy_type}")
+            print(f"  Timeframe: {timeframe}")
             print(f"  Capital per symbol: ₹{capital_per_symbol}")
             print(f"  Total Allocated: ₹{total_allocated_capital}")
             print("=" * 60)
@@ -480,7 +484,7 @@ class TradingBot:
                 df = market_data_service.get_historical_data_by_symbol(
                     symbol=symbol,
                     exchange="NSE",
-                    interval="5minute",
+                    interval=self.timeframe,
                     days_back=5
                 )
                 

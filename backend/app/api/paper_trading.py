@@ -1,12 +1,16 @@
 """
 Paper Trading API Endpoints
 Provides portfolio, funds, and trade history for paper trading
+**USER-AWARE**: Each user sees only their own paper trading data
 """
-from fastapi import APIRouter, HTTPException, Body
+from fastapi import APIRouter, HTTPException, Body, Depends
 from typing import Dict, Optional
 from pydantic import BaseModel
-from app.services.paper_trading import paper_engine, PAPER_TRADING_MODE
+from app.services.paper_trading import PAPER_TRADING_MODE
+from app.services.multi_user_paper_trading import multi_user_paper_manager
 from app.services.tick_processor import tick_processor
+from app.services.kite_auth import kite_auth_service
+from app.utils.auth_utils import get_session_token
 
 router = APIRouter()
 
@@ -18,10 +22,28 @@ class ManualTradeRequest(BaseModel):
     strategy: str = "MANUAL"
 
 
-@router.get("/portfolio")
-async def get_paper_portfolio():
+def get_user_paper_engine(session_token: Optional[str] = Depends(get_session_token)):
     """
-    Get complete paper trading portfolio
+    Get paper trading engine for the authenticated user
+    """
+    try:
+        # Get user profile to extract user_id
+        user_profile = kite_auth_service.get_user_profile(session_token)
+        user_id = user_profile.get("user_id")
+        
+        if not user_id:
+            raise HTTPException(status_code=401, detail="User ID not found in session")
+        
+        # Get or create engine for this user
+        return multi_user_paper_manager.get_engine(user_id)
+    except Exception as e:
+        raise HTTPException(status_code=401, detail=f"Authentication failed: {str(e)}")
+
+
+@router.get("/portfolio")
+async def get_paper_portfolio(paper_engine = Depends(get_user_paper_engine)):
+    """
+    Get complete paper trading portfolio for the authenticated user
     
     Returns:
         - paper_funds: Virtual capital, available, invested, realized P&L
@@ -47,9 +69,9 @@ async def get_paper_portfolio():
 
 
 @router.get("/trades")
-async def get_trade_history():
+async def get_trade_history(paper_engine = Depends(get_user_paper_engine)):
     """
-    Get paper trading history
+    Get paper trading history for the authenticated user
     
     Returns all completed buy/sell trades with timestamps, prices, and P&L
     """
@@ -73,9 +95,9 @@ async def get_trade_history():
 
 
 @router.get("/history")
-async def get_history():
+async def get_history(paper_engine = Depends(get_user_paper_engine)):
     """
-    Get complete paper trading history (alias for /trades)
+    Get complete paper trading history for the authenticated user (alias for /trades)
     
     Returns all completed buy/sell trades with timestamps, prices, and P&L
     Simple endpoint name for easy access
@@ -100,9 +122,9 @@ async def get_history():
 
 
 @router.get("/funds")
-async def get_paper_funds():
+async def get_paper_funds(paper_engine = Depends(get_user_paper_engine)):
     """
-    Get paper trading funds summary
+    Get paper trading funds summary for the authenticated user
     
     Returns:
         Virtual capital, available, invested, and P&L breakdown
@@ -127,9 +149,9 @@ async def get_paper_funds():
 
 
 @router.get("/stats")
-async def get_performance_stats():
+async def get_performance_stats(paper_engine = Depends(get_user_paper_engine)):
     """
-    Get performance statistics
+    Get performance statistics for the authenticated user
     
     Returns:
         Win rate, avg profit/loss, best/worst trades, profit factor
@@ -153,9 +175,9 @@ async def get_performance_stats():
 
 
 @router.post("/reset")
-async def reset_paper_portfolio():
+async def reset_paper_portfolio(paper_engine = Depends(get_user_paper_engine)):
     """
-    Reset paper trading portfolio to initial state
+    Reset paper trading portfolio to initial state for the authenticated user
     
     WARNING: This will clear all positions and reset funds to ₹1,00,000
     """
@@ -180,10 +202,8 @@ async def reset_paper_portfolio():
         paper_engine.positions.clear()
         paper_engine.trades.clear()
         
-        # Also reset trading bot state to ensure waiting logic works correctly
-        # Import lazily to avoid circular imports if any (though structured differently here)
-        from app.services.trading_bot import trading_bot
-        trading_bot.reset_state()
+        # Save to database
+        paper_engine._save_meta()
         
         return {
             "status": "success",
@@ -201,9 +221,9 @@ async def reset_paper_portfolio():
 
 
 @router.post("/test-trade")
-async def place_test_trade():
+async def place_test_trade(paper_engine = Depends(get_user_paper_engine)):
     """
-    Place a test trade to verify dashboard functionality
+    Place a test trade to verify dashboard functionality for the authenticated user
     """
     try:
         if not PAPER_TRADING_MODE:
@@ -236,9 +256,9 @@ async def place_test_trade():
 
 
 @router.post("/manual-trade")
-async def place_manual_trade(trade: ManualTradeRequest):
+async def place_manual_trade(trade: ManualTradeRequest, paper_engine = Depends(get_user_paper_engine)):
     """
-    Place a manual paper trade
+    Place a manual paper trade for the authenticated user
     """
     try:
         if not PAPER_TRADING_MODE:

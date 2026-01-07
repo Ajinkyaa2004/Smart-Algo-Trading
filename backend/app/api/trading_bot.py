@@ -19,6 +19,7 @@ class StartBotRequest(BaseModel):
     symbols: List[str]
     strategy_type: str = DEFAULT_STRATEGY  # supertrend, ema_rsi, renko_macd
     capital_per_symbol: float = 3000.0
+    timeframe: str = "1minute"  # minute, 5minute, 15minute, etc.
     enable_tick_storage: bool = False
     strategy_params: Optional[Dict] = None
 
@@ -47,6 +48,7 @@ async def start_bot(request: StartBotRequest):
             symbols=request.symbols,
             strategy_type=request.strategy_type,
             capital_per_symbol=request.capital_per_symbol,
+            timeframe=request.timeframe,
             enable_tick_storage=request.enable_tick_storage,
             **strategy_params
         )
