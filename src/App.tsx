@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { Sidebar, Header } from './layout/Layout';
 import Dashboard from './pages/Dashboard';
 import Portfolio from './pages/Portfolio';
-import Strategies from './pages/Strategies';
 import LiveMarket from './pages/LiveMarket';
 import HistoricalData from './pages/HistoricalData';
 import Orders from './pages/Orders';
@@ -63,7 +62,6 @@ function App() {
     switch (activePage) {
       case 'dashboard': return <Dashboard onNavigate={setActivePage} />;
       case 'portfolio': return <Portfolio />;
-      case 'strategies': return <Strategies />;
       case 'trading-bot': return <TradingBot />;
       case 'live': return <LiveMarket />;
       case 'historical': return <HistoricalData />;

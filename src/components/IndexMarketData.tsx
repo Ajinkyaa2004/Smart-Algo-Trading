@@ -68,11 +68,11 @@ export const IndexMarketData: React.FC<IndexMarketDataProps> = React.memo(({ nif
         try {
             const symbolsParam = allSymbols.join(',');
             const response = await fetch(`http://localhost:8000/api/market/quote?symbols=${encodeURIComponent(symbolsParam)}`);
-            
+
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
-            
+
             const data = await response.json();
 
             if (data.status === 'success' && data.data) {
@@ -87,7 +87,7 @@ export const IndexMarketData: React.FC<IndexMarketDataProps> = React.memo(({ nif
             console.error('Failed to fetch quotes:', error);
             setConnectionError(true);
             setRetryCount(prev => prev + 1);
-            
+
             // Exponential backoff: if too many failures, reduce frequency
             if (retryCount > 5) {
                 setAutoRefresh(false);
@@ -100,7 +100,7 @@ export const IndexMarketData: React.FC<IndexMarketDataProps> = React.memo(({ nif
 
     useEffect(() => {
         fetchQuotes();
-        
+
         if (autoRefresh) {
             // Update every 2 seconds for real-time data (optimized for performance)
             const interval = setInterval(fetchQuotes, 2000);
@@ -142,7 +142,7 @@ export const IndexMarketData: React.FC<IndexMarketDataProps> = React.memo(({ nif
                 `http://localhost:8000/api/market/historical/quick?symbol=${encodeURIComponent(symbol)}&exchange=${exchange}&days=90&interval=day`
             );
             const data = await response.json();
-            
+
             if (data.status === 'success' && data.data) {
                 setHistoricalData(data.data);
             } else {
@@ -160,8 +160,9 @@ export const IndexMarketData: React.FC<IndexMarketDataProps> = React.memo(({ nif
         if (selectedIndex) {
             const [exchange, ...symbolParts] = selectedIndex.split(':');
             const symbol = symbolParts.join(':');
-            
-            // Only fetch historical data for NSE indices (BSE not supported by Kite Connect)
+
+            // Kite Connect API limitation: Historical data only available for NSE indices
+            // BSE indices (SENSEX, BANKEX, etc.) only support live quotes, not historical candles
             if (exchange === 'NSE') {
                 fetchHistoricalData(symbol, exchange);
             } else {
@@ -193,9 +194,8 @@ export const IndexMarketData: React.FC<IndexMarketDataProps> = React.memo(({ nif
                     <div className="text-xl font-bold text-zinc-100">
                         ₹{formatNumber(quote.last_price)}
                     </div>
-                    <div className={`flex items-center gap-1 text-xs font-semibold ${
-                        isPositive ? 'text-emerald-400' : 'text-red-400'
-                    }`}>
+                    <div className={`flex items-center gap-1 text-xs font-semibold ${isPositive ? 'text-emerald-400' : 'text-red-400'
+                        }`}>
                         {isPositive ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
                         <span>{isPositive ? '+' : ''}{changePercent.toFixed(2)}%</span>
                     </div>
@@ -226,13 +226,11 @@ export const IndexMarketData: React.FC<IndexMarketDataProps> = React.memo(({ nif
                         <span className="text-sm text-zinc-400">Auto-refresh</span>
                         <button
                             onClick={() => setAutoRefresh(!autoRefresh)}
-                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                                autoRefresh ? 'bg-emerald-600' : 'bg-zinc-700'
-                            }`}
+                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${autoRefresh ? 'bg-emerald-600' : 'bg-zinc-700'
+                                }`}
                         >
-                            <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                                autoRefresh ? 'translate-x-6' : 'translate-x-1'
-                            }`} />
+                            <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${autoRefresh ? 'translate-x-6' : 'translate-x-1'
+                                }`} />
                         </button>
                     </div>
                     <button
@@ -316,9 +314,8 @@ export const IndexMarketData: React.FC<IndexMarketDataProps> = React.memo(({ nif
                                             <div className="text-3xl font-bold text-zinc-100">
                                                 ₹{formatNumber(selectedQuote.last_price)}
                                             </div>
-                                            <div className={`flex items-center gap-1 justify-end mt-1 ${
-                                                getChangePercent(selectedQuote) >= 0 ? 'text-emerald-500' : 'text-red-500'
-                                            }`}>
+                                            <div className={`flex items-center gap-1 justify-end mt-1 ${getChangePercent(selectedQuote) >= 0 ? 'text-emerald-500' : 'text-red-500'
+                                                }`}>
                                                 {getChangePercent(selectedQuote) >= 0 ? (
                                                     <TrendingUp className="w-5 h-5" />
                                                 ) : (
@@ -353,15 +350,15 @@ export const IndexMarketData: React.FC<IndexMarketDataProps> = React.memo(({ nif
                                         </h4>
                                         <div className="space-y-3">
                                             <DataRow label="Open" value={`₹${formatNumber(selectedQuote.ohlc?.open)}`} />
-                                            <DataRow 
-                                                label="High" 
-                                                value={`₹${formatNumber(selectedQuote.ohlc?.high)}`} 
-                                                valueColor="text-emerald-400" 
+                                            <DataRow
+                                                label="High"
+                                                value={`₹${formatNumber(selectedQuote.ohlc?.high)}`}
+                                                valueColor="text-emerald-400"
                                             />
-                                            <DataRow 
-                                                label="Low" 
-                                                value={`₹${formatNumber(selectedQuote.ohlc?.low)}`} 
-                                                valueColor="text-red-400" 
+                                            <DataRow
+                                                label="Low"
+                                                value={`₹${formatNumber(selectedQuote.ohlc?.low)}`}
+                                                valueColor="text-red-400"
                                             />
                                             <DataRow label="Close (Prev)" value={`₹${formatNumber(selectedQuote.ohlc?.close)}`} />
                                         </div>
@@ -388,15 +385,15 @@ export const IndexMarketData: React.FC<IndexMarketDataProps> = React.memo(({ nif
                                             Order Book
                                         </h4>
                                         <div className="space-y-3">
-                                            <DataRow 
-                                                label="Buy Qty" 
-                                                value={formatNumber(selectedQuote.buy_quantity)} 
-                                                valueColor="text-emerald-400" 
+                                            <DataRow
+                                                label="Buy Qty"
+                                                value={formatNumber(selectedQuote.buy_quantity)}
+                                                valueColor="text-emerald-400"
                                             />
-                                            <DataRow 
-                                                label="Sell Qty" 
-                                                value={formatNumber(selectedQuote.sell_quantity)} 
-                                                valueColor="text-red-400" 
+                                            <DataRow
+                                                label="Sell Qty"
+                                                value={formatNumber(selectedQuote.sell_quantity)}
+                                                valueColor="text-red-400"
                                             />
                                             {selectedQuote.oi !== undefined && (
                                                 <>
@@ -430,11 +427,20 @@ export const IndexMarketData: React.FC<IndexMarketDataProps> = React.memo(({ nif
                                             {selectedIndex?.startsWith('BSE:') ? (
                                                 <>
                                                     <BarChart3 className="w-12 h-12 mb-3 opacity-50" />
-                                                    <p className="font-medium">Historical data not available for BSE indices</p>
-                                                    <p className="text-sm mt-2 text-zinc-600">Kite Connect API only supports NSE index historical data</p>
+                                                    <p className="font-medium text-amber-400">Historical Charts Not Available for BSE Indices</p>
+                                                    <p className="text-sm mt-2 text-zinc-400 max-w-md text-center">
+                                                        Kite Connect API only provides live quotes for BSE indices (SENSEX, BANKEX, etc.).
+                                                    </p>
+                                                    <p className="text-xs mt-2 text-zinc-600">
+                                                        Historical candle data is only available for NSE indices.
+                                                    </p>
                                                 </>
                                             ) : (
-                                                <p>No historical data available for this index</p>
+                                                <>
+                                                    <BarChart3 className="w-12 h-12 mb-3 opacity-50" />
+                                                    <p className="font-medium">No historical data available</p>
+                                                    <p className="text-sm mt-2 text-zinc-600">Historical data may not be available for this index</p>
+                                                </>
                                             )}
                                         </div>
                                     )}
@@ -516,10 +522,10 @@ export const IndexMarketData: React.FC<IndexMarketDataProps> = React.memo(({ nif
 });
 
 // Helper component for data rows - memoized to prevent re-renders
-const DataRow: React.FC<{ label: string; value: string | number; valueColor?: string }> = React.memo(({ 
-    label, 
-    value, 
-    valueColor = 'text-zinc-100' 
+const DataRow: React.FC<{ label: string; value: string | number; valueColor?: string }> = React.memo(({
+    label,
+    value,
+    valueColor = 'text-zinc-100'
 }) => (
     <div className="flex items-center justify-between text-sm">
         <span className="text-zinc-500">{label}</span>

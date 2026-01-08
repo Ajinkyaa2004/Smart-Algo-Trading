@@ -894,9 +894,7 @@ export default function HistoricalData() {
                 {/* Decision Helper */}
                 <Card className={`border-2 ${result.metrics.win_rate >= 60 && result.metrics.profit_factor >= 1.5
                   ? 'bg-emerald-900/20 border-emerald-600'
-                  : result.metrics.win_rate >= 50 && result.metrics.profit_factor >= 1.2
-                    ? 'bg-yellow-900/20 border-yellow-600'
-                    : 'bg-red-900/20 border-red-600'
+                  : 'bg-yellow-900/20 border-yellow-600'
                   }`}>
                   <CardContent className="p-6">
                     <div className="flex items-start gap-4">
@@ -909,16 +907,12 @@ export default function HistoricalData() {
                         <h3 className="text-xl font-bold text-white mb-2">
                           {result.metrics.win_rate >= 60 && result.metrics.profit_factor >= 1.5
                             ? '✅ Strategy Recommended'
-                            : result.metrics.win_rate >= 50 && result.metrics.profit_factor >= 1.2
-                              ? '⚠️ Strategy Needs Optimization'
-                              : '❌ Strategy Not Recommended'}
+                            : '⚠️ Strategy Needs Optimization'}
                         </h3>
                         <p className="text-zinc-300 leading-relaxed">
                           {result.metrics.win_rate >= 60 && result.metrics.profit_factor >= 1.5
                             ? `This strategy shows excellent performance with a ${result.metrics.win_rate}% win rate and ${result.metrics.profit_factor} profit factor. The backtest generated ₹${result.metrics.total_pnl.toLocaleString()} profit (${result.metrics.total_pnl_percent}%) over ${result.metrics.total_trades} trades. Consider using this strategy for live trading.`
-                            : result.metrics.win_rate >= 50 && result.metrics.profit_factor >= 1.2
-                              ? `This strategy shows moderate performance. While it's profitable, consider optimizing parameters or testing different timeframes to improve the win rate (${result.metrics.win_rate}%) and profit factor (${result.metrics.profit_factor}).`
-                              : `This strategy underperformed in backtesting with a ${result.metrics.win_rate}% win rate and ${result.metrics.profit_factor} profit factor. We recommend testing different parameters, timeframes, or trying a different strategy before going live.`}
+                            : `This strategy shows moderate performance. While it may be profitable, consider optimizing parameters or testing different timeframes to improve the win rate (${result.metrics.win_rate}%) and profit factor (${result.metrics.profit_factor}).`}
                         </p>
                       </div>
                     </div>

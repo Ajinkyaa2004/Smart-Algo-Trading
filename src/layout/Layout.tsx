@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { LayoutDashboard, TrendingUp, Settings, Activity, Menu, LogOut, Wallet, Database, ShoppingCart, Bot, BarChart3 } from 'lucide-react';
+import { LayoutDashboard, Settings, Activity, Menu, LogOut, Wallet, Database, ShoppingCart, Bot, BarChart3 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { MarketTicker } from '../components/MarketTicker';
 
@@ -14,7 +14,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ activePage, onNavigate, isOpen
     const navItems = [
         { id: 'dashboard', label: 'Watchlist', icon: LayoutDashboard },
         { id: 'portfolio', label: 'Portfolio', icon: Wallet },
-        { id: 'strategies', label: 'Strategies', icon: TrendingUp },
         { id: 'trading-bot', label: 'Trading Bot', icon: Bot },
         { id: 'live', label: 'Live Trading', icon: Activity },
         { id: 'orders', label: 'Orders', icon: ShoppingCart },
